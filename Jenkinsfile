@@ -1,21 +1,45 @@
 pipeline {
-  agent {
-    docker {
-      args '-v /var/run/docker.sock:/var/run/docker.sock -p 127.0.0.1:1234:1234 TCP-LISTEN:1234,fork UNIX-CONNECT:/var/run/docker.sock'
-      image 'bobrik/socat'
+    agent none
+    stages {
+        stage('Build') {
+            agent {
+                docker {
+                    image 'python:2-alpine'
+                }
+            }
+            steps {
+                sh 'python -m py_compile sources/add2vals.py sources/calc.py'
+            }
+        }
+        stage('Test') {
+            agent {
+                docker {
+                    image 'qnib/pytest'
+                }
+            }
+            steps {
+                sh 'py.test --verbose --junit-xml test-reports/results.xml sources/test_calc.py'
+            }
+            post {
+                always {
+                    junit 'test-reports/results.xml'
+                }
+            }
+        }
+        stage('Deliver') {
+            agent {
+                docker {
+                    image 'cdrx/pyinstaller-linux:python2'
+                }
+            }
+            steps {
+                sh 'pyinstaller --onefile sources/add2vals.py'
+            }
+            post {
+                success {
+                    archiveArtifacts 'dist/add2vals'
+                }
+            }
+        }
     }
-
-  }
-  stages {
-    stage('Build1') {
-      steps {
-        sh 'docker run python:2-alpine'
-      }
-    }
-    stage('build2') {
-      steps {
-        sh 'python -m py_compile sources/add2vals.py sources/calc.py'
-      }
-    }
-  }
 }
